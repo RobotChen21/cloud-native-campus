@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/admin/questions")
-@Api(tags = "互动问答的相关接口")
+@Api(tags = "互动问答相关接口")
 @RequiredArgsConstructor
 public class InteractionQuestionAdminController {
 

@@ -83,6 +83,10 @@ public class LearningLesson implements Serializable {
      * 过期时间
      */
     private LocalDateTime expireTime;
+    /**
+     * 学完时间
+     */
+    private LocalDateTime finishTime;
 
     /**
      * 更新时间

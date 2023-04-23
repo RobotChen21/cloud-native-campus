@@ -22,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -69,11 +70,11 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         if (recordDTO.getSectionType() == SectionType.VIDEO) {
             // 2.1.处理视频
             finished = handleVideoRecord(userId, recordDTO);
-        }else{
+        } else {
             // 2.2.处理考试
             finished = handleExamRecord(userId, recordDTO);
         }
-        if(!finished){
+        if (!finished) {
             // 没有新学完的小节，无需更新课表中的学习进度
             return;
         }
@@ -90,18 +91,19 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         // 2.判断是否有新的完成小节
         boolean allLearned = false;
 
-            // 3.如果有新完成的小节，则需要查询课程数据
-            CourseFullInfoDTO cInfo = courseClient.getCourseInfoById(lesson.getCourseId(), false, false);
-            if (cInfo == null) {
-                throw new BizIllegalException("课程不存在，无法更新数据！");
-            }
-            // 4.比较课程是否全部学完：已学习小节 >= 课程总小节
-            allLearned = lesson.getLearnedSections() + 1 >= cInfo.getSectionNum();
+        // 3.如果有新完成的小节，则需要查询课程数据
+        CourseFullInfoDTO cInfo = courseClient.getCourseInfoById(lesson.getCourseId(), false, false);
+        if (cInfo == null) {
+            throw new BizIllegalException("课程不存在，无法更新数据！");
+        }
+        // 4.比较课程是否全部学完：已学习小节 >= 课程总小节
+        allLearned = lesson.getLearnedSections() + 1 >= cInfo.getSectionNum();
 
         // 5.更新课表
         lessonService.lambdaUpdate()
                 .set(lesson.getLearnedSections() == 0, LearningLesson::getStatus, LessonStatus.LEARNING.getValue())
                 .set(allLearned, LearningLesson::getStatus, LessonStatus.FINISHED.getValue())
+                .set(allLearned, LearningLesson::getFinishTime, LocalDateTime.now())
                 .setSql("learned_sections = learned_sections + 1")
                 .eq(LearningLesson::getId, lesson.getId())
                 .update();
@@ -127,7 +129,7 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         // 4.存在，则更新
         // 4.1.判断是否是第一次完成
         boolean finished = !old.getFinished() && recordDTO.getMoment() * 2 >= recordDTO.getDuration();
-        if(!finished){
+        if (!finished) {
             LearningRecord record = new LearningRecord();
             record.setLessonId(recordDTO.getLessonId());
             record.setSectionId(recordDTO.getSectionId());
@@ -144,7 +146,7 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
                 .set(LearningRecord::getFinishTime, recordDTO.getCommitTime())
                 .eq(LearningRecord::getId, old.getId())
                 .update();
-        if(!success){
+        if (!success) {
             throw new DbException("更新学习记录失败！");
         }
         // 4.3.清理缓存

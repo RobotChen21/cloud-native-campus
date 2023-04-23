@@ -23,7 +23,7 @@ import javax.validation.Valid;
  */
 @RestController
 @RequestMapping("/questions")
-@Api(tags = "互动问答的相关接口")
+@Api(tags = "互动问答相关接口")
 @RequiredArgsConstructor
 public class InteractionQuestionController {
 
@@ -51,7 +51,7 @@ public class InteractionQuestionController {
 
     @ApiOperation("根据id查询互动问题")
     @GetMapping("{id}")
-    public QuestionVO queryQuestionById(@PathVariable("id") Long id){
+    public QuestionVO queryQuestionById(@ApiParam(value = "问题id", example = "1") @PathVariable("id") Long id){
         return questionService.queryQuestionById(id);
     }
 

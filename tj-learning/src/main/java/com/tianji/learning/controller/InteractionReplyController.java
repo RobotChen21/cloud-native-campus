@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/replies")
 @RequiredArgsConstructor
-@Api(tags = "互动问答相关接口 ")
+@Api(tags = "互动问答相关接口")
 public class InteractionReplyController {
 
     private final IInteractionReplyService replyService;

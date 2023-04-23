@@ -20,6 +20,8 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.DelayQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 @Slf4j
 @Component
@@ -32,10 +34,10 @@ public class LearningRecordDelayTaskHandler {
     private final DelayQueue<DelayTask<RecordTaskData>> queue = new DelayQueue<>();
     private final static String RECORD_KEY_TEMPLATE = "learning:record:{}";
     private static volatile boolean begin = true;
-
+    private final static Executor es = Executors.newFixedThreadPool(4);
     @PostConstruct
     public void init(){
-        CompletableFuture.runAsync(this::handleDelayTask);
+        CompletableFuture.runAsync(this::handleDelayTask, es);
     }
     @PreDestroy
     public void destroy(){
@@ -80,7 +82,7 @@ public class LearningRecordDelayTaskHandler {
         // 1.添加数据到Redis缓存
         writeRecordCache(record);
         // 2.提交延迟任务到延迟队列 DelayQueue
-        queue.add(new DelayTask<>(new RecordTaskData(record), Duration.ofSeconds(20)));
+        // queue.add(new DelayTask<>(new RecordTaskData(record), Duration.ofSeconds(20)));
     }
 
     public void writeRecordCache(LearningRecord record) {

@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
  * @author 虎哥
  * @since 2022-10-21
  */
-@Api(tags = "问题管理相关接口")
+@Api(tags = "互动问答相关接口")
 @RestController
 @RequestMapping("/admin/replies")
 @RequiredArgsConstructor
@@ -36,13 +36,13 @@ public class InteractionReplyAdminController {
         replyService.hiddenReply(id, hidden);
     }
 
-    @ApiOperation("分页查询回答或评论")
+    @ApiOperation("管理端分页查询回答或评论")
     @GetMapping("page")
     public PageDTO<ReplyVO> queryReplyPage(ReplyPageQuery pageQuery){
         return replyService.queryReplyPage(pageQuery, true);
     }
 
-    @ApiOperation("根据id查询回答或评论")
+    @ApiOperation("管理端根据id查询回答或评论")
     @GetMapping("{id}")
     public ReplyVO queryReplyById(@ApiParam(value = "问题id", example = "1") @PathVariable("id") Long id){
         return replyService.queryReplyById(id);

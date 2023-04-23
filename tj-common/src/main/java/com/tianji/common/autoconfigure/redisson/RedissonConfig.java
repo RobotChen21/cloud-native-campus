@@ -28,12 +28,6 @@ public class RedissonConfig {
 
     @Bean
     @ConditionalOnMissingBean
-    public LockAspect lockAspect(RedissonClient redissonClient){
-        return new LockAspect(redissonClient);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public RedissonClient redissonClient(RedisProperties properties){
         log.debug("尝试初始化RedissonClient");
         // 1.读取Redis配置
@@ -84,4 +78,12 @@ public class RedissonConfig {
         }
         return nodes.toArray(new String[0]);
     }
+
+
+    @Bean
+    @ConditionalOnMissingBean
+    public LockAspect lockAspect(RedissonClient redissonClient){
+        return new LockAspect(redissonClient);
+    }
+
 }
