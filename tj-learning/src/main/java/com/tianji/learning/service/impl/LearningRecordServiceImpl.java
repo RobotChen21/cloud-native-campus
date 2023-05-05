@@ -22,7 +22,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -103,7 +102,6 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         lessonService.lambdaUpdate()
                 .set(lesson.getLearnedSections() == 0, LearningLesson::getStatus, LessonStatus.LEARNING.getValue())
                 .set(allLearned, LearningLesson::getStatus, LessonStatus.FINISHED.getValue())
-                .set(allLearned, LearningLesson::getFinishTime, LocalDateTime.now())
                 .setSql("learned_sections = learned_sections + 1")
                 .eq(LearningLesson::getId, lesson.getId())
                 .update();
