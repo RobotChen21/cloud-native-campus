@@ -4,7 +4,7 @@ BASE_PATH='/usr/local/src/jenkins/workspace/tjxt-dev-build'
 PROJECT_NAME=""
 PROJECT_PATH=''
 CONTAINER_NAME=""
-JAVA_OPTS="-Xms300m -Xmx300m"
+JAVA_OPTS="-Xms512m -Xmx512m"
 PORT=8080
 DEBUG_PORT=0
 while getopts "c:n:d:p:o:a:" opt; do
@@ -58,7 +58,7 @@ if [ "$DEBUG_PORT" = "0" ]; then
   docker run -d --name ${CONTAINER_NAME} \
    -p "${PORT}:${PORT}" \
    -e JAVA_OPTS="${JAVA_OPTS}" \
-   --memory 300m --memory-swap -1 \
+   --memory 1g --memory-swap -1 \
    --network heima-net ${IMAGE_NAME} \
   || exit 1
 else
