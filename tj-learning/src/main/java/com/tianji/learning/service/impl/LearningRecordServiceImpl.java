@@ -102,6 +102,8 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         lessonService.lambdaUpdate()
                 .set(lesson.getLearnedSections() == 0, LearningLesson::getStatus, LessonStatus.LEARNING.getValue())
                 .set(allLearned, LearningLesson::getStatus, LessonStatus.FINISHED.getValue())
+                .set(LearningLesson::getLatestSectionId, recordDTO.getSectionId())
+                .set(LearningLesson::getLatestLearnTime, recordDTO.getCommitTime())
                 .setSql("learned_sections = learned_sections + 1")
                 .eq(LearningLesson::getId, lesson.getId())
                 .update();
