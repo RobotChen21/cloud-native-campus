@@ -1,6 +1,5 @@
 package com.tianji.learning.utils;
 
-import com.tianji.common.utils.JsonUtils;
 import com.tianji.common.utils.StringUtils;
 import com.tianji.learning.domain.po.LearningLesson;
 import com.tianji.learning.domain.po.LearningRecord;
@@ -10,33 +9,45 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.redisson.api.RBlockingQueue;
+import org.redisson.api.RDelayedQueue;
+import org.redisson.api.RedissonClient;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import java.io.Serializable;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class LearningRecordDelayTaskHandler {
 
-    private final StringRedisTemplate redisTemplate;
+    private final RedisTemplate redisTemplate;
     private final LearningRecordMapper recordMapper;
     private final ILearningLessonService lessonService;
-    private final DelayQueue<DelayTask<RecordTaskData>> queue = new DelayQueue<>();
+    private final RedissonClient redissonClient;
+    private RBlockingQueue<RecordTaskData> blockingQueue;
+    private RDelayedQueue<RecordTaskData> delayedQueue;
+    
     private final static String RECORD_KEY_TEMPLATE = "learning:record:{}";
     private static volatile boolean begin = true;
     private final static Executor es = Executors.newFixedThreadPool(4);
+
     @PostConstruct
     public void init(){
+        log.info("RedisTemplate KeySerializer: {}", redisTemplate.getKeySerializer());
+        log.info("RedisTemplate ValueSerializer: {}", redisTemplate.getValueSerializer());
+        blockingQueue = redissonClient.getBlockingQueue("learning:record:delay");
+        delayedQueue = redissonClient.getDelayedQueue(blockingQueue);
         CompletableFuture.runAsync(this::handleDelayTask, es);
     }
     @PreDestroy
@@ -49,8 +60,7 @@ public class LearningRecordDelayTaskHandler {
         while (begin) {
             try {
                 // 1.获取到期的延迟任务
-                DelayTask<RecordTaskData> task = queue.take();
-                RecordTaskData data = task.getData();
+                RecordTaskData data = blockingQueue.take();
                 // 2.查询Redis缓存
                 LearningRecord record = readRecordCache(data.getLessonId(), data.getSectionId());
                 if (record == null) {
@@ -82,17 +92,17 @@ public class LearningRecordDelayTaskHandler {
         // 1.添加数据到Redis缓存
         writeRecordCache(record);
         // 2.提交延迟任务到延迟队列 DelayQueue
-        // queue.add(new DelayTask<>(new RecordTaskData(record), Duration.ofSeconds(20)));
+        delayedQueue.offer(new RecordTaskData(record), 20, TimeUnit.SECONDS);
     }
 
     public void writeRecordCache(LearningRecord record) {
         log.debug("更新学习记录的缓存数据");
         try {
             // 1.数据转换
-            String json = JsonUtils.toJsonStr(new RecordCacheData(record));
+            RecordCacheData cacheData = new RecordCacheData(record);
             // 2.写入Redis
             String key = StringUtils.format(RECORD_KEY_TEMPLATE, record.getLessonId());
-            redisTemplate.opsForHash().put(key, record.getSectionId().toString(), json);
+            redisTemplate.opsForHash().put(key, record.getSectionId().toString(), cacheData);
             // 3.添加缓存过期时间
             redisTemplate.expire(key, Duration.ofMinutes(1));
         } catch (Exception e) {
@@ -109,7 +119,12 @@ public class LearningRecordDelayTaskHandler {
                 return null;
             }
             // 2.数据检查和转换
-            return JsonUtils.toBean(cacheData.toString(), LearningRecord.class);
+            RecordCacheData data = (RecordCacheData) cacheData;
+            LearningRecord record = new LearningRecord();
+            record.setId(data.getId());
+            record.setMoment(data.getMoment());
+            record.setFinished(data.getFinished());
+            return record;
         } catch (Exception e) {
             log.error("缓存读取异常", e);
             return null;
@@ -117,15 +132,16 @@ public class LearningRecordDelayTaskHandler {
     }
 
     public void cleanRecordCache(Long lessonId, Long sectionId){
-        // 删除数据
+        // 删除数据,Redis中的key是lesson_id
         String key = StringUtils.format(RECORD_KEY_TEMPLATE, lessonId);
         redisTemplate.opsForHash().delete(key, sectionId.toString());
     }
 
     @Data
     @NoArgsConstructor
-    private static class RecordCacheData{
-        private Long id;
+    private static class RecordCacheData implements Serializable {
+        //这个存储的是Redis中小节播放的时刻
+        private Long id;//section_id,作为hash中的key
         private Integer moment;
         private Boolean finished;
 
@@ -137,7 +153,8 @@ public class LearningRecordDelayTaskHandler {
     }
     @Data
     @NoArgsConstructor
-    private static class RecordTaskData{
+    private static class RecordTaskData implements Serializable {
+        //这个是延时队列内的消息，他的任务只有判断用户是否还再继续观看吗，记录消息生产时的moment，对比未来消费时的moment
         private Long lessonId;
         private Long sectionId;
         private Integer moment;

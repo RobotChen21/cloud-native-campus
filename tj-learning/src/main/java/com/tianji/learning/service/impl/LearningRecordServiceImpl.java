@@ -8,6 +8,7 @@ import com.tianji.api.dto.leanring.LearningRecordDTO;
 import com.tianji.common.exceptions.BizIllegalException;
 import com.tianji.common.exceptions.DbException;
 import com.tianji.common.utils.BeanUtils;
+import com.tianji.common.utils.CollUtils;
 import com.tianji.common.utils.UserContext;
 import com.tianji.learning.domain.dto.LearningRecordFormDTO;
 import com.tianji.learning.domain.po.LearningLesson;
@@ -48,9 +49,24 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         Long userId = UserContext.getUser();
         // 2.查询课表
         LearningLesson lesson = lessonService.queryByUserAndCourseId(userId, courseId);
+        if (lesson == null) {
+            return null;
+        }
         // 3.查询学习记录
-        // select * from xx where lesson_id = #{lessonId}
+        // 3.1.查询数据库中的记录
         List<LearningRecord> records = lambdaQuery().eq(LearningRecord::getLessonId, lesson.getId()).list();
+        // 3.2.查询Redis缓存中的最新进度（正在观看的视频可能有未落库的最新进度）
+        if (CollUtils.isNotEmpty(records)) {
+            for (LearningRecord r : records) {
+                // 尝试读取缓存
+                LearningRecord cache = taskHandler.readRecordCache(r.getLessonId(), r.getSectionId());
+                if (cache != null) {
+                    // 如果缓存中有，说明是正在观看的热点数据，用缓存覆盖数据库的老数据
+                    r.setMoment(cache.getMoment());
+                    r.setFinished(cache.getFinished());
+                }
+            }
+        }
         // 4.封装结果
         LearningLessonDTO dto = new LearningLessonDTO();
         dto.setId(lesson.getId());
@@ -67,7 +83,7 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         // 2.处理学习记录
         boolean finished = false;
         if (recordDTO.getSectionType() == SectionType.VIDEO) {
-            // 2.1.处理视频
+            // 2.1.处理视频 这个流程要优化，该函数只处理learning_record这张表
             finished = handleVideoRecord(userId, recordDTO);
         } else {
             // 2.2.处理考试
@@ -114,7 +130,7 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         LearningRecord old = queryOldRecord(recordDTO.getLessonId(), recordDTO.getSectionId());
         // 2.判断是否存在
         if (old == null) {
-            // 3.不存在，则新增
+            // 3.不存在，则新增，新增是低频需求，更新是高频需求，这里不用动
             // 3.1.转换PO
             LearningRecord record = BeanUtils.copyBean(recordDTO, LearningRecord.class);
             // 3.2.填充数据
@@ -129,7 +145,7 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         // 4.存在，则更新
         // 4.1.判断是否是第一次完成
         boolean finished = !old.getFinished() && recordDTO.getMoment() * 2 >= recordDTO.getDuration();
-        if (!finished) {
+        if (!finished) {//这下面是就是更新的逻辑，更新操作是高频局部的，使用Redisson延时队列改造
             LearningRecord record = new LearningRecord();
             record.setLessonId(recordDTO.getLessonId());
             record.setSectionId(recordDTO.getSectionId());
@@ -149,7 +165,7 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         if (!success) {
             throw new DbException("更新学习记录失败！");
         }
-        // 4.3.清理缓存
+        // 4.3.清理缓存，如果是第一次完成小节，这时候要更新数据库了，redis的的数据中的finished字段不再最新，需要删除
         taskHandler.cleanRecordCache(recordDTO.getLessonId(), recordDTO.getSectionId());
         return true;
     }

@@ -41,6 +41,7 @@ public class RedissonConfig {
         }
         // 2.设置Redisson配置
         Config config = new Config();
+        config.setCodec(new org.redisson.codec.JsonJacksonCodec());
         if(cluster != null && !CollectionUtil.isEmpty(cluster.getNodes())){
             // 集群模式
             config.useClusterServers()

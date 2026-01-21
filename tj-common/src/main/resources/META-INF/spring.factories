@@ -5,5 +5,6 @@ org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
  com.tianji.common.autoconfigure.mvc.ParamCheckerConfig,\
  com.tianji.common.autoconfigure.mybatis.MybatisConfig,\
  com.tianji.common.autoconfigure.redisson.RedissonConfig,\
+ com.tianji.common.autoconfigure.redis.RedisConfig,\
  com.tianji.common.autoconfigure.swagger.Knife4jConfiguration, \
  com.tianji.common.autoconfigure.xxljob.XxlJobConfig
