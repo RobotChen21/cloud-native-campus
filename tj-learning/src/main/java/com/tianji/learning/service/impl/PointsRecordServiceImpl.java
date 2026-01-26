@@ -16,8 +16,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -36,22 +38,23 @@ public class PointsRecordServiceImpl extends ServiceImpl<PointsRecordMapper, Poi
     public void addPointsRecord(Long userId, int points, PointsRecordType type) {
         LocalDateTime now = LocalDateTime.now();
         int maxPoints = type.getMaxPoints();
-        // 1.判断当前方式有没有积分上限
         int realPoints = points;
+        // 1.判断当前方式有没有积分上限
         if(maxPoints > 0) {
             // 2.有，则需要判断是否超过上限
-            LocalDateTime begin = DateUtils.getDayStartTime(now);
-            LocalDateTime end = DateUtils.getDayEndTime(now);
-            // 2.1.查询今日已得积分
-            int currentPoints = queryUserPointsByTypeAndDate(userId, type, begin, end);
-            // 2.2.判断是否超过上限
-            if(currentPoints >= maxPoints) {
-                // 2.3.超过，直接结束
-                return;
-            }
-            // 2.4.没超过，保存积分记录
-            if(currentPoints + points > maxPoints){
-                realPoints = maxPoints - currentPoints;
+            String key = RedisConstants.POINTS_RECORD_KEY_PREFIX + now.format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ":" + userId;
+            // 2.1.利用Redis原子递增，替代数据库聚合查询
+            Long currentPoints = redisTemplate.opsForHash().increment(key, type.name(), points);
+            // 2.2.设置过期时间，防止内存泄漏（1天即可）
+            redisTemplate.expire(key, 1, TimeUnit.DAYS);
+            // 2.3.判断是否超过上限
+            if(currentPoints > maxPoints) {
+                // 2.3.若现在超过，计算此次实际得分。例如：上限20，原18，加5->23。实际=5-(23-20)=2
+                realPoints = points - (currentPoints.intValue() - maxPoints);
+                // 2.4.如果扣减后实际得分<=0，说明积分早就满了，直接结束，不写库
+                if(realPoints <= 0){
+                    return;
+                }
             }
         }
         // 3.没有，直接保存积分记录

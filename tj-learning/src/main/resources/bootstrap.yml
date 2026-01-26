@@ -26,6 +26,8 @@ spring:
             refresh: false
           - data-id: shared-seata.yaml # 共享seata配置
             refresh: false
+          - data-id: shared-xxljob.yaml
+            refresh: false
 tj:
   swagger:
     enable: true
