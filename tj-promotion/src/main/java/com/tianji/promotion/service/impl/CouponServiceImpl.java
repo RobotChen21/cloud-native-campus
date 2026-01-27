@@ -85,7 +85,7 @@ public class CouponServiceImpl extends ServiceImpl<CouponMapper, Coupon> impleme
         }
         // 2.1.转换PO
         List<CouponScope> list = scopes.stream()
-                .map(bizId -> new CouponScope().setBizId(bizId).setCouponId(couponId))
+                .map(bizId -> new CouponScope().setBizId(bizId).setCouponId(couponId).setType(1))
                 .collect(Collectors.toList());
         // 2.2.保存
         scopeService.saveBatch(list);
